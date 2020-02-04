@@ -1,7 +1,6 @@
 package url
 
 import (
-	"net/url"
 	"regexp"
 	"strings"
 	"text/template"
@@ -14,6 +13,9 @@ const (
 
 	// PlaylistLocatorURLJSON is the pattern of JSON which contains playlist locator URL value
 	PlaylistLocatorURLJSON = `"liveJsUrl":"(.*?)"`
+
+	// Playlist is the URL template for the radio stream playlist
+	Playlist = "https://live.881903.com/edge-aac/{{.Name}}/chunks.m3u8"
 )
 
 // Station is the template structure for RadioStationPage URL
@@ -21,24 +23,20 @@ type Station struct {
 	Name string
 }
 
-// RadioStationPageURL builds the radion station page URL
-func RadioStationPageURL(stationName string) *url.URL {
+// RadioChannelPageURL builds the radio channel page URL
+func RadioChannelPageURL(channel string) string {
 	tpl, err := template.New("stationurl").Parse(RadioStationPage)
 	if err != nil {
 		panic(err)
 	}
 
-	stationURLStr := new(strings.Builder)
-	err = tpl.Execute(stationURLStr, Station{Name: stationName})
-	if err != nil {
-		panic(err)
-	}
-	stationURL, err := url.Parse(stationURLStr.String())
+	channelURLStr := new(strings.Builder)
+	err = tpl.Execute(channelURLStr, Station{Name: channel})
 	if err != nil {
 		panic(err)
 	}
 
-	return stationURL
+	return channelURLStr.String()
 }
 
 // FetchPlaylistLocatorURL fetches the playlist locator URL from
@@ -49,4 +47,20 @@ func FetchPlaylistLocatorURL(radioStationPageHTML string) (string, bool) {
 		return "", false
 	}
 	return matched[1], true
+}
+
+// PlaylistURL builds the radio channel stream playlist URL
+func PlaylistURL(channel string) string {
+	tpl, err := template.New("playlisturl").Parse(Playlist)
+	if err != nil {
+		panic(err)
+	}
+
+	playlistURLStr := new(strings.Builder)
+	err = tpl.Execute(playlistURLStr, Station{Name: channel})
+	if err != nil {
+		panic(err)
+	}
+
+	return playlistURLStr.String()
 }
