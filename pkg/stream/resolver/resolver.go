@@ -2,11 +2,13 @@ package resolver
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
-	"github.com/antonyho/crhk-recorder/pkg/stream/url"
 	"github.com/ushis/m3u"
+
+	"github.com/antonyho/crhk-recorder/pkg/stream/url"
 )
 
 const (
@@ -27,21 +29,9 @@ const (
 
 // Find channel M3U format playlist
 func Find(channel string) (m3u.Playlist, error) {
-	channelPageURL := url.RadioChannelPageURL(channel)
-
-	resp, err := http.Get(channelPageURL)
+	playlistLocatorURL, err := GetPlaylistLocatorPageURL(channel)
 	if err != nil {
 		return nil, err
-	}
-	defer resp.Body.Close()
-
-	channelPageBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	playlistLocatorURL, success := url.FetchPlaylistLocatorURL(string(channelPageBody))
-	if !success {
-		return nil, errors.New("playlist URL not found")
 	}
 
 	playlistAuthURL, err := GetPlaylistAuthenticationURL(playlistLocatorURL)
@@ -57,6 +47,27 @@ func Find(channel string) (m3u.Playlist, error) {
 	return GetPlaylist(channel, policy, keypair, sig)
 }
 
+func GetPlaylistLocatorPageURL(channel string) (string, error) {
+	channelPageURL := url.RadioChannelPageURL(channel)
+
+	resp, err := http.Get(channelPageURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	channelPageBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	playlistLocatorURL, success := url.FetchPlaylistLocatorURL(string(channelPageBody))
+	if !success {
+		return "", errors.New("playlist URL not found")
+	}
+
+	return playlistLocatorURL, nil
+}
+
 // GetPlaylistAuthenticationURL finds the authentication URL for playlist
 func GetPlaylistAuthenticationURL(locatorURL string) (string, error) {
 	resp, err := http.Get(locatorURL)
@@ -67,6 +78,8 @@ func GetPlaylistAuthenticationURL(locatorURL string) (string, error) {
 
 	authenticatorLocation := resp.Header.Get(PlaylistLocationHeaderName)
 	if authenticatorLocation == "" {
+		fmt.Printf("Request Response: %+v\n\n", resp)
+		fmt.Printf("Headers: %+v\n\n", resp.Header)
 		return "", errors.New("playlist authenticator location URL header not found")
 	}
 

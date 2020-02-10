@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRadioStationPageURL(t *testing.T) {
-	stationPageURL := RadioStationPageURL("881")
-	assert.Equal(t, stationPageURL.String(), "https://www.881903.com/live/881")
+func TestRadioChannelPageURL(t *testing.T) {
+	stationPageURL := RadioChannelPageURL("881")
+	assert.Equal(t, stationPageURL, "https://www.881903.com/live/881")
 }
 
 func TestFetchPlaylistLocatorURL(t *testing.T) {
@@ -18,4 +18,10 @@ func TestFetchPlaylistLocatorURL(t *testing.T) {
 
 	assert.True(t, found)
 	assert.Equal(t, "https://playlist.881903.com/web/v4/881hd/playlist.js?t=1580598696&n1=da63b561a2eb8b27fb6d&n2=pH4UfT%2F92LfZo47ay8gpXsLz0aU%3D", playlistLocatorURL)
+}
+
+func TestPlaylistURL(t *testing.T) {
+	playlistURL := PlaylistURL("881hd")
+
+	assert.Equal(t, "https://live.881903.com/edge-aac/881hd/chunks.m3u8", playlistURL)
 }
