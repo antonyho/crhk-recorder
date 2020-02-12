@@ -7,16 +7,18 @@ import (
 )
 
 func TestGetPlaylistLocatorPageURL(t *testing.T) {
-	playlistLocatorURL, err := GetPlaylistLocatorPageURL("881")
+	playlistLocatorURL, channelName, err := GetPlaylistLocatorPageURL("881")
 	if assert.NoError(t, err) {
 		t.Logf("Playlist Locator URL: %s", playlistLocatorURL)
+		t.Logf("Channel Name: %s", channelName)
 	}
 }
 
 func TestFind(t *testing.T) {
-	playlist, err := Find("881")
+	channelName, playlist, err := Find("881")
 
 	if assert.NoError(t, err) {
+		t.Logf("Channel Name: %s", channelName)
 		t.Logf("Playlist: %+v", playlist)
 	}
 }

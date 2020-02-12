@@ -2,11 +2,9 @@ package resolver
 
 import (
 	"errors"
-	"fmt"
+	"github.com/ushis/m3u"
 	"io/ioutil"
 	"net/http"
-
-	"github.com/ushis/m3u"
 
 	"github.com/antonyho/crhk-recorder/pkg/stream/url"
 )
@@ -25,70 +23,62 @@ const (
 
 	// CloudFrontCookieNameSignature is the cookie name for CloudFront signature
 	CloudFrontCookieNameSignature = "CloudFront-Signature"
+
+	// UserAgentCamouflage disguises our HTTP client as a common browser agent
+	UserAgentCamouflage = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:71.0) Gecko/20100101 Firefox/71.0"
 )
 
 // Find channel M3U format playlist
-func Find(channel string) (m3u.Playlist, error) {
-	playlistLocatorURL, err := GetPlaylistLocatorPageURL(channel)
+func Find(channel string) (channelName string, playlist m3u.Playlist, err error) {
+	playlistLocatorURL, channelName, err := GetPlaylistLocatorPageURL(channel)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	playlistAuthURL, err := GetPlaylistAuthenticationURL(playlistLocatorURL)
+	policy, keypair, sig, err := GetPlaylistAuthentication(playlistLocatorURL)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	policy, keypair, sig, err := GetPlaylistAuthentication(playlistAuthURL)
-	if err != nil {
-		return nil, err
-	}
+	playlist, err = GetPlaylist(channelName, policy, keypair, sig)
 
-	return GetPlaylist(channel, policy, keypair, sig)
+	return
 }
 
-func GetPlaylistLocatorPageURL(channel string) (string, error) {
+func GetPlaylistLocatorPageURL(channel string) (string, string, error) {
 	channelPageURL := url.RadioChannelPageURL(channel)
 
 	resp, err := http.Get(channelPageURL)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 
 	channelPageBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	playlistLocatorURL, success := url.FetchPlaylistLocatorURL(string(channelPageBody))
-	if !success {
-		return "", errors.New("playlist URL not found")
-	}
-
-	return playlistLocatorURL, nil
-}
-
-// GetPlaylistAuthenticationURL finds the authentication URL for playlist
-func GetPlaylistAuthenticationURL(locatorURL string) (string, error) {
-	resp, err := http.Get(locatorURL)
+	playlistLocatorURL, channelName, success, err := url.FetchPlaylistLocatorURL(string(channelPageBody))
 	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	authenticatorLocation := resp.Header.Get(PlaylistLocationHeaderName)
-	if authenticatorLocation == "" {
-		fmt.Printf("Request Response: %+v\n\n", resp)
-		fmt.Printf("Headers: %+v\n\n", resp.Header)
-		return "", errors.New("playlist authenticator location URL header not found")
+		return "", "", err
+	} else if !success {
+		return "", "", errors.New("playlist URL not found")
 	}
 
-	return authenticatorLocation, nil
+	return playlistLocatorURL, channelName, nil
 }
 
 // GetPlaylistAuthentication gets the playlist access authentication cookies
-func GetPlaylistAuthentication(authURL string) (policy, keypair, sig string, err error) {
-	resp, err := http.Get(authURL)
+func GetPlaylistAuthentication(locatorURL string) (policy, keypair, sig string, err error) {
+	req, err := http.NewRequest(http.MethodGet, locatorURL, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("User-Agent", UserAgentCamouflage)
+	req.Header.Set("Referer", "https://www.881903.com/live/881")
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return
 	}
@@ -111,10 +101,16 @@ func GetPlaylistAuthentication(authURL string) (policy, keypair, sig string, err
 }
 
 // GetPlaylist gets the playlist using the given authentication cookie values
-func GetPlaylist(channel, policy, keypair, sig string) (m3u.Playlist, error) {
-	playlistURL := url.PlaylistURL(channel)
+func GetPlaylist(channelName, policy, keypair, sig string) (m3u.Playlist, error) {
+	playlistURL, err := url.PlaylistURL(channelName)
+	if err != nil {
+		return nil, err
+	}
 
-	req, err := http.NewRequest(http.MethodGet, playlistURL, nil)
+	req, err := http.NewRequest(http.MethodGet, playlistURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 	req.AddCookie(&http.Cookie{Name: CloudFrontCookieNamePolicy, Value: policy})
 	req.AddCookie(&http.Cookie{Name: CloudFrontCookieNameKeyPairID, Value: keypair})
 	req.AddCookie(&http.Cookie{Name: CloudFrontCookieNameSignature, Value: sig})
