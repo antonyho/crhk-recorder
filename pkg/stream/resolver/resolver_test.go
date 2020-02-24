@@ -15,7 +15,7 @@ func TestGetPlaylistLocatorPageURL(t *testing.T) {
 }
 
 func TestFind(t *testing.T) {
-	channelName, playlist, err := Find("881")
+	channelName, playlist, _, err := Find("881")
 
 	if assert.NoError(t, err) {
 		t.Logf("Channel Name: %s", channelName)
