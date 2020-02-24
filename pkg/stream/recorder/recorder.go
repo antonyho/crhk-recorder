@@ -9,7 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/antonyho/crhk-recorder/pkg/stream/resolver"
@@ -89,13 +89,13 @@ func (r Recorder) Record(startFrom, until time.Time) error {
 		panic("incorrect time sequence")
 	}
 
-	workingDirPath, err := os.Getwd()
+	currExecDirPath, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	workingDir := path.Dir(workingDirPath)
 	mediaFilename := fmt.Sprintf("%s-%s.aac", r.Channel, startFrom.Format("2006-01-02"))
-	fileDestPath := path.Join(workingDir, mediaFilename)
+	fileDestPath := filepath.Join(currExecDirPath, mediaFilename)
+	fmt.Println(fileDestPath)
 	f, err := os.Create(fileDestPath)
 	if err != nil {
 		return err
@@ -103,7 +103,7 @@ func (r Recorder) Record(startFrom, until time.Time) error {
 	defer f.Close()
 	bufFile := bufio.NewWriter(f)
 	defer bufFile.Flush()
-	r.targetFile = f
+	r.targetFile = bufFile
 
 	diffFromStartTime := time.Until(startFrom)
 	diffFromEndTime := time.Until(until)
