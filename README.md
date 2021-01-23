@@ -2,4 +2,7 @@
 A stream recorder for CRHK radio
 
 ## Build
-go build -o crhk-recorder-cli cmd/cli/main.go
+$ make
+
+## Schedule to record 881 on everyday from 23:04 for an hour
+$ ./crhkrecorder -s "23:06:00 +0800" -d 1h

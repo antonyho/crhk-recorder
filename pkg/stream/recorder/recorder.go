@@ -4,24 +4,28 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/antonyho/crhk-recorder/pkg/stream/url"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/antonyho/crhk-recorder/pkg/stream/url"
+
 	"github.com/antonyho/crhk-recorder/pkg/stream/resolver"
 )
 
+// Recorder CRHK radio channel broadcasted online
 type Recorder struct {
 	Channel                 string
 	cloudfrontSessionCookie *resolver.CloudfrontCookie
 	downloaded              map[string]bool
-	targetFile io.Writer
+	targetFile              io.Writer
 }
 
+// NewRecorder is a constructor for Recorder
 func NewRecorder(channel string) *Recorder {
 	return &Recorder{
 		Channel:    channel,
@@ -59,7 +63,7 @@ func (r Recorder) Download(targetFile io.Writer) error {
 			return err
 		}
 		if resp.StatusCode != http.StatusOK {
-			return errors.New(fmt.Sprintf("unsuccessful HTTP request. response code: %d", resp.StatusCode))
+			return fmt.Errorf("unsuccessful HTTP request. response code: %d", resp.StatusCode)
 		}
 		media, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -75,7 +79,7 @@ func (r Recorder) Download(targetFile io.Writer) error {
 		if err != nil {
 			return err
 		} else if written != contentSize {
-			return errors.New(fmt.Sprintf("written byte size %d does not match with file size %d", written, contentSize))
+			return fmt.Errorf("written byte size %d does not match with file size %d", written, contentSize)
 		}
 		r.downloaded[track.Path] = true
 	}
@@ -95,7 +99,7 @@ func (r Recorder) Record(startFrom, until time.Time) error {
 	}
 	mediaFilename := fmt.Sprintf("%s-%s.aac", r.Channel, startFrom.Format("2006-01-02"))
 	fileDestPath := filepath.Join(currExecDirPath, mediaFilename)
-	fmt.Println(fileDestPath)
+	log.Println(fileDestPath)
 	f, err := os.Create(fileDestPath)
 	if err != nil {
 		return err
@@ -141,7 +145,7 @@ func (r Recorder) Schedule(startTime, endTime string) error {
 	if err != nil {
 		return err
 	}
-	start = start.AddDate(thisYear, int(thisMonth) - 1, thisDay - 1)
+	start = start.AddDate(thisYear, int(thisMonth)-1, thisDay-1)
 	if start.Before(time.Now()) {
 		timeDelay = 24 * time.Hour
 		start = start.Add(timeDelay)
@@ -150,15 +154,19 @@ func (r Recorder) Schedule(startTime, endTime string) error {
 	if err != nil {
 		return err
 	}
-	end = end.AddDate(thisYear, int(thisMonth) - 1, thisDay - 1)
+	end = end.AddDate(thisYear, int(thisMonth)-1, thisDay-1)
+	if end.Before(start) {
+		end = end.Add(24 * time.Hour)
+	}
 	if timeDelay > 0 {
 		end = end.Add(timeDelay)
 	}
 
 	for { // When it starts, it never ends...
+		log.Printf("The next recording schedule: %s - %s", start.Format("2006-01-02 15:04:05 -0700"), end.Format("2006-01-02 15:04:05 -0700"))
 		if time.Until(start) > time.Minute {
 			// Wait a bit if the start time to more than 1 minute apart
-			<- time.After(time.Until(start.Add(-10 * time.Second)))
+			<-time.After(time.Until(start.Add(-10 * time.Second)))
 		}
 		if err := r.Record(start, end); err != nil {
 			return err
@@ -166,6 +174,4 @@ func (r Recorder) Schedule(startTime, endTime string) error {
 		start = start.Add(24 * time.Hour)
 		end = end.Add(24 * time.Hour)
 	}
-
-	return nil
 }
