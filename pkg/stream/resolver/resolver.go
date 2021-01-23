@@ -2,9 +2,10 @@ package resolver
 
 import (
 	"errors"
-	"github.com/ushis/m3u"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/ushis/m3u"
 
 	"github.com/antonyho/crhk-recorder/pkg/stream/url"
 )

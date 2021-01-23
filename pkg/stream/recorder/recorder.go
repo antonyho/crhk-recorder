@@ -146,19 +146,17 @@ func (r Recorder) Schedule(startTime, endTime string) error {
 		return err
 	}
 	start = start.AddDate(thisYear, int(thisMonth)-1, thisDay-1)
-	if start.Before(time.Now()) {
-		timeDelay = 24 * time.Hour
-		start = start.Add(timeDelay)
-	}
 	end, err := time.Parse("15:04:05 -0700", endTime)
 	if err != nil {
 		return err
 	}
 	end = end.AddDate(thisYear, int(thisMonth)-1, thisDay-1)
-	if end.Before(start) {
+	if end.Before(start) { // To cover an overnight recording
 		end = end.Add(24 * time.Hour)
 	}
-	if timeDelay > 0 {
+	if start.Before(time.Now()) { // To cover start time already passed
+		timeDelay = 24 * time.Hour
+		start = start.Add(timeDelay)
 		end = end.Add(timeDelay)
 	}
 

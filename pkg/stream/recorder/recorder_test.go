@@ -2,14 +2,15 @@ package recorder_test
 
 import (
 	"fmt"
-	"github.com/antonyho/crhk-recorder/pkg/stream/recorder"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/antonyho/crhk-recorder/pkg/stream/recorder"
 )
 
 const (
-	channel = "881"
+	channel  = "881"
 	fileDest = "/tmp/881hd.aac"
 )
 
@@ -33,17 +34,18 @@ func TestRecorder_Record(t *testing.T) {
 	rcdr := recorder.NewRecorder(channel)
 	term := make(chan struct{})
 	go func() {
+		start := time.Now()
 		for {
 			select {
-			case <- term:
+			case <-term:
+				fmt.Println()
 				return
 			default:
-				start := time.Now()
 				fmt.Printf("\rElapsed: %v", time.Since(start))
 			}
 		}
 	}()
-	if err := rcdr.Record(time.Now().Add(2 * time.Second), time.Now().Add(2 * time.Minute)); err != nil {
+	if err := rcdr.Record(time.Now().Add(2*time.Second), time.Now().Add(10*time.Second)); err != nil {
 		t.Error(err)
 	}
 	term <- struct{}{}
@@ -53,8 +55,10 @@ func TestRecorder_Schedule(t *testing.T) {
 	terminate := make(chan bool)
 	performTest := func() {
 		rcdr := recorder.NewRecorder(channel)
-		startTime := time.Now().Add(5 * time.Second).Format("15:04:05 -0700")
-		endTime := time.Now().Add(30 * time.Second).Format("15:04:05 -0700")
+		tf := "15:04:05 -0700"
+		now := time.Now()
+		startTime := now.Add(5 * time.Second).Format(tf)
+		endTime := now.Add(30 * time.Second).Format(tf)
 		t.Logf("Start time: %v | End time: %v", startTime, endTime)
 		if err := rcdr.Schedule(startTime, endTime); err != nil {
 			t.Error(err)
