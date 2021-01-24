@@ -19,7 +19,7 @@ func main() {
 	flag.StringVar(&startTime, "s", "", "start time with timezone abbreviation")
 	flag.StringVar(&endTime, "e", "", "end time with timezone abbreviation")
 	flag.DurationVar(&duration, "d", 0, "record duration (don't do this over 24 hours)")
-	flag.BoolVar(&repeat, "l", true, "repeat recording at scheduled time on next day")
+	flag.BoolVar(&repeat, "r", true, "repeat recording at scheduled time on next day")
 	flag.Parse()
 
 	if duration == 0 {

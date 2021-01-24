@@ -62,7 +62,27 @@ func TestRecorder_Record(t *testing.T) {
 	term <- struct{}{}
 }
 
-func TestRecorder_Schedule(t *testing.T) {
+func TestRecorder_Schedule_once(t *testing.T) {
+	tmpDirPath := t.TempDir()
+	if err := os.MkdirAll(tmpDirPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(tmpDirPath); err != nil {
+		t.Fatal(err)
+	}
+
+	rcdr := recorder.NewRecorder(channel)
+	tf := "15:04:05 -0700"
+	now := time.Now()
+	startTime := now.Add(5 * time.Second).Format(tf)
+	endTime := now.Add(30 * time.Second).Format(tf)
+	t.Logf("Start time: %v | End time: %v", startTime, endTime)
+	if err := rcdr.Schedule(startTime, endTime, false); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestRecorder_Schedule_endless(t *testing.T) {
 	tmpDirPath := t.TempDir()
 	if err := os.MkdirAll(tmpDirPath, 0755); err != nil {
 		t.Fatal(err)
@@ -79,7 +99,7 @@ func TestRecorder_Schedule(t *testing.T) {
 		startTime := now.Add(5 * time.Second).Format(tf)
 		endTime := now.Add(30 * time.Second).Format(tf)
 		t.Logf("Start time: %v | End time: %v", startTime, endTime)
-		if err := rcdr.Schedule(startTime, endTime, false); err != nil {
+		if err := rcdr.Schedule(startTime, endTime, true); err != nil {
 			t.Error(err)
 		}
 		terminate <- true
@@ -89,7 +109,9 @@ func TestRecorder_Schedule(t *testing.T) {
 
 	select {
 	case <-timeout:
-		t.Fatal("Test didn't finish in time")
+		t.Log("Breaking the endless schedule")
 	case <-terminate:
+		t.Log("Endless schedule shall not terminate")
+		t.FailNow()
 	}
 }
