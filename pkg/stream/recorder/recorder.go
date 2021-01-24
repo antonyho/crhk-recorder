@@ -17,12 +17,17 @@ import (
 	"github.com/antonyho/crhk-recorder/pkg/stream/resolver"
 )
 
+const (
+	// ConsecutiveErrorTolerance is the number of failures on downloading a stream
+	// which shall be tolerated
+	ConsecutiveErrorTolerance = 15
+)
+
 // Recorder CRHK radio channel broadcasted online
 type Recorder struct {
 	Channel                 string
 	cloudfrontSessionCookie *resolver.CloudfrontCookie
 	downloaded              map[string]bool
-	targetFile              io.Writer
 }
 
 // NewRecorder is a constructor for Recorder
@@ -31,6 +36,10 @@ func NewRecorder(channel string) *Recorder {
 		Channel:    channel,
 		downloaded: make(map[string]bool),
 	}
+}
+
+func (r Recorder) cleanup() {
+	r.downloaded = make(map[string]bool)
 }
 
 // Download the media from channel playlist
@@ -97,9 +106,8 @@ func (r Recorder) Record(startFrom, until time.Time) error {
 	if err != nil {
 		return err
 	}
-	mediaFilename := fmt.Sprintf("%s-%s.aac", r.Channel, startFrom.Format("2006-01-02"))
+	mediaFilename := fmt.Sprintf("%s-%s.aac", r.Channel, startFrom.Format("2006-01-02-150405"))
 	fileDestPath := filepath.Join(currExecDirPath, mediaFilename)
-	log.Println(fileDestPath)
 	f, err := os.Create(fileDestPath)
 	if err != nil {
 		return err
@@ -107,7 +115,6 @@ func (r Recorder) Record(startFrom, until time.Time) error {
 	defer f.Close()
 	bufFile := bufio.NewWriter(f)
 	defer bufFile.Flush()
-	r.targetFile = bufFile
 
 	diffFromStartTime := time.Until(startFrom)
 	diffFromEndTime := time.Until(until)
@@ -118,27 +125,39 @@ func (r Recorder) Record(startFrom, until time.Time) error {
 		termination <- true
 	}()
 
+	failCount := 0
+
 	<-time.After(diffFromStartTime)
 	for {
 		select {
 		case <-termination:
+			r.cleanup()
 			return nil
 
 		default:
-			if err := r.Download(r.targetFile); err != nil {
-				return err
+			if err := r.Download(bufFile); err != nil {
+				if failCount < ConsecutiveErrorTolerance {
+					log.Printf("Download Error: %+v", err)
+					time.Sleep(calculateRetryDelay(failCount))
+					failCount++
+					continue
+				} else {
+					return err
+				}
 			}
 			if err := bufFile.Flush(); err != nil {
 				return err
 			}
+			failCount = 0
 		}
 	}
 }
 
 // Schedule a time to start and end recording everyday
+// endless controls if the schedule would continue endlessly on next scheduled day
 // startTime format: 13:23:45 +0100 (24H with timezone offset)
 // startTime format: 18:54:21 +0100 (24H with timezone offset)
-func (r Recorder) Schedule(startTime, endTime string) error {
+func (r Recorder) Schedule(startTime, endTime string, endless bool) error {
 	var timeDelay time.Duration
 	thisYear, thisMonth, thisDay := time.Now().Date()
 	start, err := time.Parse("15:04:05 -0700", startTime)
@@ -160,7 +179,7 @@ func (r Recorder) Schedule(startTime, endTime string) error {
 		end = end.Add(timeDelay)
 	}
 
-	for { // When it starts, it never ends...
+	for i := 0; endless || i == 0; i++ {
 		log.Printf("The next recording schedule: %s - %s", start.Format("2006-01-02 15:04:05 -0700"), end.Format("2006-01-02 15:04:05 -0700"))
 		if time.Until(start) > time.Minute {
 			// Wait a bit if the start time to more than 1 minute apart
@@ -169,7 +188,18 @@ func (r Recorder) Schedule(startTime, endTime string) error {
 		if err := r.Record(start, end); err != nil {
 			return err
 		}
-		start = start.Add(24 * time.Hour)
-		end = end.Add(24 * time.Hour)
+		if endless {
+			start = start.Add(24 * time.Hour)
+			end = end.Add(24 * time.Hour)
+		}
 	}
+
+	return nil
+}
+
+func calculateRetryDelay(count int) time.Duration {
+	if count > 0 {
+		return time.Duration(count) * time.Second
+	}
+	return 0
 }

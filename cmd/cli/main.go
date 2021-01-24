@@ -13,11 +13,13 @@ func main() {
 		startTime string
 		endTime   string
 		duration  time.Duration
+		repeat    bool
 	)
 	flag.StringVar(&channel, "c", "881", "channel name in abbreviation")
 	flag.StringVar(&startTime, "s", "", "start time with timezone abbreviation")
 	flag.StringVar(&endTime, "e", "", "end time with timezone abbreviation")
 	flag.DurationVar(&duration, "d", 0, "record duration (don't do this over 24 hours)")
+	flag.BoolVar(&repeat, "l", true, "repeat recording at scheduled time on next day")
 	flag.Parse()
 
 	if duration == 0 {
@@ -37,7 +39,7 @@ func main() {
 		endTime = start.Add(duration).Format("15:04:05 -0700")
 	}
 
-	if err := rcdr.Schedule(startTime, endTime); err != nil {
+	if err := rcdr.Schedule(startTime, endTime, repeat); err != nil {
 		panic(err)
 	}
 }
