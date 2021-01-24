@@ -3,6 +3,7 @@ package recorder_test
 import (
 	"fmt"
 	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -11,10 +12,12 @@ import (
 
 const (
 	channel  = "881"
-	fileDest = "/tmp/881hd.aac"
+	filename = "881hd.aac"
 )
 
 func TestRecorder_Download(t *testing.T) {
+	tmpDirPath := t.TempDir()
+	fileDest := path.Join(tmpDirPath, filename)
 	testFile, err := os.Create(fileDest)
 	defer testFile.Close()
 	if err != nil {
@@ -31,6 +34,14 @@ func TestRecorder_Download(t *testing.T) {
 }
 
 func TestRecorder_Record(t *testing.T) {
+	tmpDirPath := t.TempDir()
+	if err := os.MkdirAll(tmpDirPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(tmpDirPath); err != nil {
+		t.Fatal(err)
+	}
+
 	rcdr := recorder.NewRecorder(channel)
 	term := make(chan struct{})
 	go func() {
@@ -52,6 +63,14 @@ func TestRecorder_Record(t *testing.T) {
 }
 
 func TestRecorder_Schedule(t *testing.T) {
+	tmpDirPath := t.TempDir()
+	if err := os.MkdirAll(tmpDirPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(tmpDirPath); err != nil {
+		t.Fatal(err)
+	}
+
 	terminate := make(chan bool)
 	performTest := func() {
 		rcdr := recorder.NewRecorder(channel)
@@ -60,7 +79,7 @@ func TestRecorder_Schedule(t *testing.T) {
 		startTime := now.Add(5 * time.Second).Format(tf)
 		endTime := now.Add(30 * time.Second).Format(tf)
 		t.Logf("Start time: %v | End time: %v", startTime, endTime)
-		if err := rcdr.Schedule(startTime, endTime); err != nil {
+		if err := rcdr.Schedule(startTime, endTime, false); err != nil {
 			t.Error(err)
 		}
 		terminate <- true
