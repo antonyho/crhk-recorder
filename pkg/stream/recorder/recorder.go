@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"time"
 
+	dow "github.com/antonyho/crhk-recorder/pkg/dayofweek"
+
 	"github.com/antonyho/crhk-recorder/pkg/stream/url"
 
 	"github.com/antonyho/crhk-recorder/pkg/stream/resolver"
@@ -21,6 +23,9 @@ const (
 	// ConsecutiveErrorTolerance is the number of failures on downloading a stream
 	// which shall be tolerated
 	ConsecutiveErrorTolerance = 15
+
+	// OneDay time value
+	OneDay = 24 * time.Hour
 )
 
 // Recorder CRHK radio channel broadcasted online
@@ -154,10 +159,11 @@ func (r Recorder) Record(startFrom, until time.Time) error {
 }
 
 // Schedule a time to start and end recording everyday
+// wd is a flag mask to control which day of week should be recorded
 // endless controls if the schedule would continue endlessly on next scheduled day
 // startTime format: 13:23:45 +0100 (24H with timezone offset)
 // startTime format: 18:54:21 +0100 (24H with timezone offset)
-func (r Recorder) Schedule(startTime, endTime string, endless bool) error {
+func (r Recorder) Schedule(startTime, endTime string, wd dow.Bitmask, endless bool) error {
 	var timeDelay time.Duration
 	thisYear, thisMonth, thisDay := time.Now().Date()
 	start, err := time.Parse("15:04:05 -0700", startTime)
@@ -171,15 +177,19 @@ func (r Recorder) Schedule(startTime, endTime string, endless bool) error {
 	}
 	end = end.AddDate(thisYear, int(thisMonth)-1, thisDay-1)
 	if end.Before(start) { // To cover an overnight recording
-		end = end.Add(24 * time.Hour)
+		end = end.Add(OneDay)
+	}
+	for !wd.AllEnabled() && !wd.Enabled(start.Weekday()) {
+		start = start.Add(OneDay)
+		end = end.Add(OneDay)
 	}
 	if start.Before(time.Now()) { // To cover start time already passed
-		timeDelay = 24 * time.Hour
+		timeDelay = OneDay
 		start = start.Add(timeDelay)
 		end = end.Add(timeDelay)
 	}
 
-	for i := 0; endless || i == 0; i++ {
+	for {
 		log.Printf("The next recording schedule: %s - %s", start.Format("2006-01-02 15:04:05 -0700"), end.Format("2006-01-02 15:04:05 -0700"))
 		if time.Until(start) > time.Minute {
 			// Wait a bit if the start time to more than 1 minute apart
@@ -189,8 +199,14 @@ func (r Recorder) Schedule(startTime, endTime string, endless bool) error {
 			return err
 		}
 		if endless {
-			start = start.Add(24 * time.Hour)
-			end = end.Add(24 * time.Hour)
+			start = start.Add(OneDay)
+			end = end.Add(OneDay)
+			for !wd.AllEnabled() && !wd.Enabled(start.Weekday()) {
+				start = start.Add(OneDay)
+				end = end.Add(OneDay)
+			}
+		} else {
+			break
 		}
 	}
 
