@@ -21,4 +21,4 @@ clean:
 	if [ -f ${BIN} ]; then rm ${BIN}; fi
 
 build:
-	go build -o ${BIN} ./cmd/cli
+	go build -o ${BIN}
