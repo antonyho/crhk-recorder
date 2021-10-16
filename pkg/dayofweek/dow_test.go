@@ -28,6 +28,12 @@ func TestMask_Enable(t *testing.T) {
 	assert.EqualValues(t, 0b00010000, *m)
 }
 
+func TestMask_EnableAll(t *testing.T) {
+	m := dow.New()
+	m.EnableAll()
+	assert.EqualValues(t, 0b01111111, *m)
+}
+
 func TestMask_Enabled(t *testing.T) {
 	m := dow.New()
 	m.Enable(time.Thursday)

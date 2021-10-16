@@ -13,10 +13,8 @@ import (
 	"time"
 
 	dow "github.com/antonyho/crhk-recorder/pkg/dayofweek"
-
-	"github.com/antonyho/crhk-recorder/pkg/stream/url"
-
 	"github.com/antonyho/crhk-recorder/pkg/stream/resolver"
+	"github.com/antonyho/crhk-recorder/pkg/stream/url"
 )
 
 const (

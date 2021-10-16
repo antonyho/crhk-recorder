@@ -85,6 +85,11 @@ func (m *Bitmask) Enable(day time.Weekday) {
 	Enable(int(day), m)
 }
 
+// EnableAll day of week in the bitmask
+func (m *Bitmask) EnableAll() {
+	*m = 0b01111111
+}
+
 // Enabled checks if the provided day of week
 // is enabled in the bitmask
 func (m Bitmask) Enabled(day time.Weekday) bool {

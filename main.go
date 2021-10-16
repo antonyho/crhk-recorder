@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/antonyho/crhk-recorder/pkg/dayofweek"
-
 	"github.com/antonyho/crhk-recorder/pkg/stream/recorder"
 )
 
@@ -26,7 +25,7 @@ func main() {
 	flag.StringVar(&endTime, "e", "", "end time with timezone abbreviation")
 	flag.DurationVar(&duration, "d", 0, "record duration [don't do this over 24 hours]")
 	flag.StringVar(&weekdays, "w", "1,2,3,4,5", "day of week on scheduled recording [comma seperated] [Sunday=0]")
-	flag.BoolVar(&repeat, "r", true, "repeat recording at scheduled time on next day")
+	flag.BoolVar(&repeat, "r", false, "repeat recording at scheduled time on next day")
 	flag.Parse()
 
 	if duration == 0 {
@@ -35,15 +34,41 @@ func main() {
 		}
 	}
 
+	// startTime is set
+	// 		duration is not set
+	// 			endTime is set - stop at given endTime
+	// 			endTime is not set - can't record infinitely
+	// 		duration is set
+	// 			endTime is not set - go with given duration
+	// 			endTime is set - stop at given endTime, ignore duration
+	// startTime is not set
+	// 		duration is not set
+	// 			endTime is set - start now and stop at endTime
+	// 			endTime is not set - this condition is unreachable
+	// 		duration is set
+	// 			endTime is set - start now and stop at endTime
+	// 			endTime is not set - start now and go with given duration
+
 	rcdr := recorder.NewRecorder(channel)
-	if duration > time.Duration(0) && endTime == "" {
-		// Change Schedule() accepts parameter types and create endTime
-		// With duration parameter, it will override the endTime
-		start, err := time.Parse("15:04:05 -0700", startTime)
-		if err != nil {
-			panic(err)
+
+	if startTime == "" {
+		startTime = time.Now().Format("15:04:05 -0700")
+	}
+
+	if duration > time.Duration(0) {
+		if endTime == "" {
+			// Change Schedule() accepts parameter types and create endTime
+			// With duration parameter, it will override the endTime
+			start, err := time.Parse("15:04:05 -0700", startTime)
+			if err != nil {
+				panic(err)
+			}
+			endTime = start.Add(duration).Format("15:04:05 -0700")
 		}
-		endTime = start.Add(duration).Format("15:04:05 -0700")
+	}
+
+	if endTime == "" {
+		panic("record time cannot be infinite")
 	}
 
 	dowMask := dayofweek.New()
@@ -60,7 +85,10 @@ func main() {
 				panic(fmt.Errorf("incorrect day of week parameter [%s]", weekdays))
 			}
 		}
-	}
+	} else if !repeat {
+		// Just now, just once.
+		dowMask.Enable(time.Now().Weekday()) // Hope you aren't starting at 23:59:59.999
+	} // Otherwise, all weeekdays.
 
 	if err := rcdr.Schedule(startTime, endTime, *dowMask, repeat); err != nil {
 		panic(err)

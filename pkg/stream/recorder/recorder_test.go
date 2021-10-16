@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/antonyho/crhk-recorder/pkg/dayofweek"
-
 	"github.com/antonyho/crhk-recorder/pkg/stream/recorder"
 )
 
