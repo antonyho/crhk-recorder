@@ -52,7 +52,8 @@ func main() {
 	rcdr := recorder.NewRecorder(channel)
 
 	if startTime == "" {
-		startTime = time.Now().Format("15:04:05 -0700")
+		// Add a second delay to avoid skipping
+		startTime = time.Now().Add(time.Second).Format("15:04:05 -0700")
 	}
 
 	if duration > time.Duration(0) {
@@ -87,7 +88,7 @@ func main() {
 		}
 	} else if !repeat {
 		// Just now, just once.
-		dowMask.Enable(time.Now().Weekday()) // Hope you aren't starting at 23:59:59.999
+		dowMask.Enable(time.Now().Weekday()) // Hope you aren't starting at 23:59:59
 	} // Otherwise, all weeekdays.
 
 	if err := rcdr.Schedule(startTime, endTime, *dowMask, repeat); err != nil {
