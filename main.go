@@ -24,7 +24,7 @@ func main() {
 	flag.StringVar(&startTime, "s", "", "start time with timezone abbreviation")
 	flag.StringVar(&endTime, "e", "", "end time with timezone abbreviation")
 	flag.DurationVar(&duration, "d", 0, "record duration [don't do this over 24 hours]")
-	flag.StringVar(&weekdays, "w", "1,2,3,4,5", "day of week on scheduled recording [comma seperated] [Sunday=0]")
+	flag.StringVar(&weekdays, "w", "", "day of week on scheduled recording [comma seperated] [Sunday=0]")
 	flag.BoolVar(&repeat, "r", false, "repeat recording at scheduled time on next day")
 	flag.Parse()
 
@@ -52,19 +52,18 @@ func main() {
 	rcdr := recorder.NewRecorder(channel)
 
 	if startTime == "" {
-		// Add 3 seconds delay to avoid skipping
-		startTime = time.Now().Add(3 * time.Second).Format("15:04:05 -0700")
-	}
-
-	// Change Schedule() accepts parameter types and create endTime
-	// With duration parameter, it will override the endTime
-	start, err := time.Parse("15:04:05 -0700", startTime)
-	if err != nil {
-		panic(err)
+		// Add a second delay to avoid skipping
+		startTime = time.Now().Add(time.Second).Format("15:04:05 -0700")
 	}
 
 	if duration > time.Duration(0) {
 		if endTime == "" {
+			// Change Schedule() accepts parameter types and create endTime
+			// With duration parameter, it will override the endTime
+			start, err := time.Parse("15:04:05 -0700", startTime)
+			if err != nil {
+				panic(err)
+			}
 			endTime = start.Add(duration).Format("15:04:05 -0700")
 		}
 	}
@@ -87,10 +86,12 @@ func main() {
 				panic(fmt.Errorf("incorrect day of week parameter [%s]", weekdays))
 			}
 		}
-	} else if !repeat {
-		// Just now, just once.
-		dowMask.Enable(start.Weekday()) // Hope you aren't starting at 23:59:59
-	} // Otherwise, all weeekdays.
+	} else {
+		if !repeat {
+			// Just now, just once.
+			dowMask.Enable(time.Now().Weekday()) // Hope you aren't starting at 23:59:59
+		} // Otherwise, all weeekdays.
+	}
 
 	if err := rcdr.Schedule(startTime, endTime, *dowMask, repeat); err != nil {
 		panic(err)
