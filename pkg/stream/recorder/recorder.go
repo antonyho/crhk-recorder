@@ -160,7 +160,6 @@ func (r Recorder) Record(startFrom, until time.Time) error {
 // wd is a flag mask to control which day of week should be recorded
 // endless controls if the schedule would continue endlessly on next scheduled day
 // startTime format: 13:23:45 +0100 (24H with timezone offset)
-// startTime format: 18:54:21 +0100 (24H with timezone offset)
 func (r Recorder) Schedule(startTime, endTime string, wd dow.Bitmask, endless bool) error {
 	var timeDelay time.Duration
 	thisYear, thisMonth, thisDay := time.Now().Date()

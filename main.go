@@ -52,18 +52,19 @@ func main() {
 	rcdr := recorder.NewRecorder(channel)
 
 	if startTime == "" {
-		// Add a second delay to avoid skipping
-		startTime = time.Now().Add(time.Second).Format("15:04:05 -0700")
+		// Add 3 seconds delay to avoid skipping
+		startTime = time.Now().Add(3 * time.Second).Format("15:04:05 -0700")
+	}
+
+	// Change Schedule() accepts parameter types and create endTime
+	// With duration parameter, it will override the endTime
+	start, err := time.Parse("15:04:05 -0700", startTime)
+	if err != nil {
+		panic(err)
 	}
 
 	if duration > time.Duration(0) {
 		if endTime == "" {
-			// Change Schedule() accepts parameter types and create endTime
-			// With duration parameter, it will override the endTime
-			start, err := time.Parse("15:04:05 -0700", startTime)
-			if err != nil {
-				panic(err)
-			}
 			endTime = start.Add(duration).Format("15:04:05 -0700")
 		}
 	}
@@ -88,7 +89,7 @@ func main() {
 		}
 	} else if !repeat {
 		// Just now, just once.
-		dowMask.Enable(time.Now().Weekday()) // Hope you aren't starting at 23:59:59
+		dowMask.Enable(start.Weekday()) // Hope you aren't starting at 23:59:59
 	} // Otherwise, all weeekdays.
 
 	if err := rcdr.Schedule(startTime, endTime, *dowMask, repeat); err != nil {
