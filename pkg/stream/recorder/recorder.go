@@ -24,11 +24,16 @@ const (
 
 	// OneDay time value
 	OneDay = 24 * time.Hour
+
+	// TwoSeconds time value
+	TwoSeconds = 2 * time.Second
 )
 
 // Recorder CRHK radio channel broadcasted online
 type Recorder struct {
 	Channel                 string
+	ChannelName             string // specifies with stream sound quality (e.g. 881HD)
+	StreamServer            string
 	cloudfrontSessionCookie *resolver.CloudfrontCookie
 	downloaded              map[string]bool
 }
@@ -41,19 +46,32 @@ func NewRecorder(channel string) *Recorder {
 	}
 }
 
-func (r Recorder) cleanup() {
+func (r *Recorder) cleanup() {
 	r.downloaded = make(map[string]bool)
 }
 
 // Download the media from channel playlist
-func (r Recorder) Download(targetFile io.Writer) error {
-	channelName, playlist, cloudfrontCookie, err := resolver.Find(r.Channel)
+func (r *Recorder) Download(targetFile io.Writer) error {
+	if r.ChannelName == "" ||
+		r.StreamServer == "" ||
+		r.cloudfrontSessionCookie == nil ||
+		!r.cloudfrontSessionCookie.Assigned() {
+		channelName, streamServer, cloudfrontCookie, err := resolver.Find(r.Channel)
+		if err != nil {
+			return err
+		}
+		r.ChannelName = channelName
+		r.StreamServer = streamServer
+		r.cloudfrontSessionCookie = &cloudfrontCookie
+	}
+
+	playlist, err := resolver.GetPlaylist(r.ChannelName, r.StreamServer, *r.cloudfrontSessionCookie)
 	if err != nil {
 		return err
 	}
-	if r.cloudfrontSessionCookie == nil {
-		r.cloudfrontSessionCookie = &cloudfrontCookie
-	}
+
+	var lastTrackDuration time.Duration
+	playlistDownloadStartTime := time.Now()
 	for _, track := range playlist {
 		if downloaded, found := r.downloaded[track.Path]; found && downloaded {
 			// Skip if the same track has been downloaded
@@ -61,13 +79,13 @@ func (r Recorder) Download(targetFile io.Writer) error {
 		}
 
 		// Add CloudFront headers to the request
-		req, err := http.NewRequest(http.MethodGet, url.StreamMediaURL(channelName, track.Path), nil)
+		req, err := http.NewRequest(http.MethodGet, url.StreamMediaURL(r.ChannelName, r.StreamServer, track.Path), nil)
 		if err != nil {
 			return err
 		}
-		req.AddCookie(&http.Cookie{Name: resolver.CloudFrontCookieNamePolicy, Value: cloudfrontCookie.Policy})
-		req.AddCookie(&http.Cookie{Name: resolver.CloudFrontCookieNameKeyPairID, Value: cloudfrontCookie.KeyPairID})
-		req.AddCookie(&http.Cookie{Name: resolver.CloudFrontCookieNameSignature, Value: cloudfrontCookie.Signature})
+		req.AddCookie(&http.Cookie{Name: resolver.CloudFrontCookieNamePolicy, Value: r.cloudfrontSessionCookie.Policy})
+		req.AddCookie(&http.Cookie{Name: resolver.CloudFrontCookieNameKeyPairID, Value: r.cloudfrontSessionCookie.KeyPairID})
+		req.AddCookie(&http.Cookie{Name: resolver.CloudFrontCookieNameSignature, Value: r.cloudfrontSessionCookie.Signature})
 
 		c := &http.Client{}
 		resp, err := c.Do(req)
@@ -75,7 +93,7 @@ func (r Recorder) Download(targetFile io.Writer) error {
 			return err
 		}
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("unsuccessful HTTP request. response code: %d", resp.StatusCode)
+			return fmt.Errorf("media file: unsuccessful HTTP request. response code: %d", resp.StatusCode)
 		}
 		media, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -94,13 +112,18 @@ func (r Recorder) Download(targetFile io.Writer) error {
 			return fmt.Errorf("written byte size %d does not match with file size %d", written, contentSize)
 		}
 		r.downloaded[track.Path] = true
+		lastTrackDuration = time.Duration(track.Time) * time.Second
+	}
+
+	if time.Since(playlistDownloadStartTime) < lastTrackDuration {
+		time.Sleep(lastTrackDuration - TwoSeconds) // Wait 2 seconds less to be secure
 	}
 
 	return nil
 }
 
 // Record the given channel
-func (r Recorder) Record(startFrom, until time.Time) error {
+func (r *Recorder) Record(startFrom, until time.Time) error {
 	if startFrom.After(until) {
 		panic("incorrect time sequence")
 	}
@@ -160,7 +183,7 @@ func (r Recorder) Record(startFrom, until time.Time) error {
 // wd is a flag mask to control which day of week should be recorded
 // endless controls if the schedule would continue endlessly on next scheduled day
 // startTime format: 13:23:45 +0100 (24H with timezone offset)
-func (r Recorder) Schedule(startTime, endTime string, wd dow.Bitmask, endless bool) error {
+func (r *Recorder) Schedule(startTime, endTime string, wd dow.Bitmask, endless bool) error {
 	var timeDelay time.Duration
 	thisYear, thisMonth, thisDay := time.Now().Date()
 	start, err := time.Parse("15:04:05 -0700", startTime)

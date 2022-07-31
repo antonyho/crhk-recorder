@@ -18,3 +18,6 @@ type CloudfrontCookie struct {
 	Signature string
 }
 
+func (c CloudfrontCookie) Assigned() bool {
+	return c.Policy != "" && c.KeyPairID != "" && c.Signature != ""
+}

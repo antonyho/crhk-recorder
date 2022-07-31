@@ -23,8 +23,14 @@ func TestFetchPlaylistLocatorURL(t *testing.T) {
 }
 
 func TestPlaylistURL(t *testing.T) {
-	playlistURL, err := PlaylistURL("881hd")
+	playlistURL, err := PlaylistURL("881hd", "live.881903.com")
 
 	assert.NoError(t, err)
 	assert.Equal(t, "https://live.881903.com/edge-aac/881hd/chunks.m3u8", playlistURL.String())
+}
+
+func TestStreamMediaURL(t *testing.T) {
+	StreamMediaURL := StreamMediaURL("881hd", "live.881903.com", "audio_chunk.aac")
+
+	assert.Equal(t, "https://live.881903.com/edge-aac/881hd/audio_chunk.aac", StreamMediaURL)
 }

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	// RadioStationPage is the URL template for the radio station
+	// RadioStationPage is the URL template for the radio channel
 	// StreamName can be 881, 903, 864
 	RadioStationPage = "https://www.881903.com/live/{{.Name}}"
 
@@ -16,20 +16,26 @@ const (
 	PlaylistLocatorURLJSON = `"liveJsUrl":"(.*?)"`
 
 	// PlaylistURLTemplate is the URL template for the radio stream playlist
-	PlaylistURLTemplate = "https://live.881903.com/edge-aac/{{.Name}}/chunks.m3u8"
+	PlaylistURLTemplate = "https://{{.server.Hostname}}/edge-aac/{{.channel.Name}}/chunks.m3u8"
 
-	// MediaURLTemplate is the URL for the stream media file
-	StreamMediaURLTemplate = "https://live.881903.com/edge-aac/{{.ChannelName}}/{{.Filename}}"
+	// StreamMediaURLTemplate is the URL for the stream media file
+	StreamMediaURLTemplate = "https://{{.StreamServer.Hostname}}/edge-aac/{{.ChannelName}}/{{.Filename}}"
 )
 
-// Station is the template structure for RadioStationPage URL
-type Station struct {
+// StreamServer is the template structure for URLs
+type StreamServer struct {
+	Hostname string
+}
+
+// Channel is the template structure for RadioChannelPage URL
+type Channel struct {
 	Name string
 }
 
 // StreamMedia is the template structure for StreamMediaURL
 type StreamMedia struct {
 	ChannelName, Filename string
+	StreamServer          StreamServer
 }
 
 // RadioChannelPageURL builds the radio channel page URL
@@ -40,7 +46,7 @@ func RadioChannelPageURL(channel string) string {
 	}
 
 	channelURLStr := new(strings.Builder)
-	err = tpl.Execute(channelURLStr, Station{Name: channel})
+	err = tpl.Execute(channelURLStr, Channel{Name: channel})
 	if err != nil {
 		panic(err)
 	}
@@ -75,14 +81,18 @@ func FetchPlaylistLocatorURL(radioStationPageHTML string) (locatorURL string, ch
 }
 
 // PlaylistURL builds the radio channel stream playlist URL
-func PlaylistURL(channelName string) (*url.URL, error) {
+func PlaylistURL(channelName, streamServer string) (*url.URL, error) {
 	tpl, err := template.New("playlisturl").Parse(PlaylistURLTemplate)
 	if err != nil {
 		return nil, err
 	}
 
 	playlistURLStr := new(strings.Builder)
-	err = tpl.Execute(playlistURLStr, Station{Name: channelName})
+	values := map[string]interface{}{
+		"channel": Channel{Name: channelName},
+		"server":  StreamServer{Hostname: streamServer},
+	}
+	err = tpl.Execute(playlistURLStr, values)
 	if err != nil {
 		return nil, err
 	}
@@ -95,14 +105,19 @@ func PlaylistURL(channelName string) (*url.URL, error) {
 }
 
 // StreamMediaURL builds the stream media URL
-func StreamMediaURL(channelName, filename string) string {
+func StreamMediaURL(channelName, streamServer, filename string) string {
 	tpl, err := template.New("mediaurl").Parse(StreamMediaURLTemplate)
 	if err != nil {
 		panic(err)
 	}
 
 	streamMediaURLStr := new(strings.Builder)
-	err = tpl.Execute(streamMediaURLStr, StreamMedia{ChannelName: channelName, Filename: filename})
+	streamMedia := StreamMedia{
+		ChannelName:  channelName,
+		Filename:     filename,
+		StreamServer: StreamServer{Hostname: streamServer},
+	}
+	err = tpl.Execute(streamMediaURLStr, streamMedia)
 	if err != nil {
 		panic(err)
 	}

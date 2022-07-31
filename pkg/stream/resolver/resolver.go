@@ -2,12 +2,13 @@ package resolver
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
 	"github.com/ushis/m3u"
 
-	"github.com/antonyho/crhk-recorder/pkg/stream/url"
+	crhk "github.com/antonyho/crhk-recorder/pkg/stream/url"
 )
 
 const (
@@ -21,53 +22,64 @@ const (
 )
 
 // Find channel M3U format playlist
-func Find(channel string) (channelName string, playlist m3u.Playlist, cloudfrontCookie CloudfrontCookie, err error) {
-	playlistLocatorURL, channelName, err := GetPlaylistLocatorPageURL(channel)
+func Find(channel string) (
+	channelName string,
+	livestreamServer string,
+	cloudfrontCookie CloudfrontCookie,
+	err error,
+) {
+	playlistCloudFrontURL, channelName, channelPageURL, err := GetCloudFrontResolverURL(channel)
 	if err != nil {
 		return
 	}
 
-	cloudfrontCookie, err = GetPlaylistAuthentication(playlistLocatorURL)
+	cloudfrontCookie, livestreamServer, err = GetPlaylistAuthentication(channelPageURL, playlistCloudFrontURL)
 	if err != nil {
 		return
 	}
-
-	playlist, err = GetPlaylist(channelName, cloudfrontCookie)
 
 	return
 }
 
-func GetPlaylistLocatorPageURL(channel string) (string, string, error) {
-	channelPageURL := url.RadioChannelPageURL(channel)
+// GetCloudFrontResolverURL finds the URL to visit in order to get CloudFront cookies
+func GetCloudFrontResolverURL(channel string) (string, string, string, error) {
+	channelPageURL := crhk.RadioChannelPageURL(channel)
 
 	resp, err := http.Get(channelPageURL)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	defer resp.Body.Close()
 
 	channelPageBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	playlistLocatorURL, channelName, success, err := url.FetchPlaylistLocatorURL(string(channelPageBody))
+	playlistCFURL, channelName, success, err := crhk.FetchPlaylistLocatorURL(string(channelPageBody))
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	} else if !success {
-		return "", "", errors.New("playlist URL not found")
+		return "", "", "", errors.New("playlist URL not found")
 	}
 
-	return playlistLocatorURL, channelName, nil
+	return playlistCFURL, channelName, channelPageURL, nil
 }
 
 // GetPlaylistAuthentication gets the playlist access authentication cookies
-func GetPlaylistAuthentication(locatorURL string) (cloudfrontCookie CloudfrontCookie, err error) {
-	req, err := http.NewRequest(http.MethodGet, locatorURL, nil)
+// It accesses the playlistCloudFrontURL, then it will get 304 redirected to
+// a new location which contains the CloudFront policy and key pair value in
+// response headers.
+func GetPlaylistAuthentication(
+	refererURL, playlistCloudFrontURL string,
+) (
+	cloudfrontCookie CloudfrontCookie, livestreamServerHostname string, err error,
+) {
+	req, err := http.NewRequest(http.MethodGet, playlistCloudFrontURL, nil)
 	if err != nil {
 		return
 	}
 	req.Header.Set("User-Agent", UserAgentCamouflage)
-	req.Header.Set("Referer", "https://www.881903.com/live/881")
+	req.Header.Set("Referer", refererURL)
 
 	httpClient := &http.Client{}
 	resp, err := httpClient.Do(req)
@@ -75,6 +87,10 @@ func GetPlaylistAuthentication(locatorURL string) (cloudfrontCookie CloudfrontCo
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		err = errors.New("http request getting CloudFront cookies failed")
+		return
+	}
 
 	for _, c := range resp.Cookies() {
 		switch c.Name {
@@ -89,12 +105,18 @@ func GetPlaylistAuthentication(locatorURL string) (cloudfrontCookie CloudfrontCo
 		}
 	}
 
+	livestreamServerHostname = resp.Request.URL.Host
+
 	return
 }
 
 // GetPlaylist gets the playlist using the given authentication cookie values
-func GetPlaylist(channelName string, cloudfrontCookie CloudfrontCookie) (m3u.Playlist, error) {
-	playlistURL, err := url.PlaylistURL(channelName)
+func GetPlaylist(
+	channelName string,
+	streamServer string,
+	cloudfrontCookie CloudfrontCookie,
+) (m3u.Playlist, error) {
+	playlistURL, err := crhk.PlaylistURL(channelName, streamServer)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +135,9 @@ func GetPlaylist(channelName string, cloudfrontCookie CloudfrontCookie) (m3u.Pla
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("playlist fetching failed. response code %d", resp.StatusCode)
+	}
 
 	return m3u.Parse(resp.Body)
 }
