@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/ushis/m3u"
@@ -88,6 +89,7 @@ func GetPlaylistAuthentication(
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("Getting CloudFront cookies HTTP request failed. URL: %s \nResponse code: %d", playlistCloudFrontURL, resp.StatusCode)
 		err = errors.New("http request getting CloudFront cookies failed")
 		return
 	}
@@ -136,7 +138,8 @@ func GetPlaylist(
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("playlist fetching failed. response code %d", resp.StatusCode)
+		log.Printf("Playlist HTTP request failed. URL: %s \nResponse code: %d", playlistURL, resp.StatusCode)
+		return nil, fmt.Errorf("playlist fetching failed")
 	}
 
 	return m3u.Parse(resp.Body)

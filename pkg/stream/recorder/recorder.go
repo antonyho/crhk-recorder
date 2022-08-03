@@ -46,8 +46,15 @@ func NewRecorder(channel string) *Recorder {
 	}
 }
 
+func (r *Recorder) clearStreamSource() {
+	r.ChannelName = ""
+	r.StreamServer = ""
+	r.cloudfrontSessionCookie = nil
+}
+
 func (r *Recorder) cleanup() {
 	r.downloaded = make(map[string]bool)
+	r.clearStreamSource()
 }
 
 // Download the media from channel playlist
@@ -164,6 +171,7 @@ func (r *Recorder) Record(startFrom, until time.Time) error {
 			if err := r.Download(bufFile); err != nil {
 				if failCount < ConsecutiveErrorTolerance {
 					log.Printf("Download Error: %+v", err)
+					r.clearStreamSource() // Probably stream source was wrong
 					time.Sleep(calculateRetryDelay(failCount))
 					failCount++
 					continue
