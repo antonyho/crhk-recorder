@@ -3,7 +3,7 @@ package resolver
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 
@@ -52,7 +52,7 @@ func GetCloudFrontResolverURL(channel string) (string, string, string, error) {
 	}
 	defer resp.Body.Close()
 
-	channelPageBody, err := ioutil.ReadAll(resp.Body)
+	channelPageBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", "", "", err
 	}

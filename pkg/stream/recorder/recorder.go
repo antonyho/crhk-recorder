@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -102,7 +101,7 @@ func (r *Recorder) Download(targetFile io.Writer) error {
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("media file: unsuccessful HTTP request. response code: %d", resp.StatusCode)
 		}
-		media, err := ioutil.ReadAll(resp.Body)
+		media, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
